@@ -1,0 +1,83 @@
+# MLP and Deep learning NN using neuralnet
+
+library(neuralnet)
+library(forecast)
+
+#MEMBACA DATA#
+data_NN <- read.csv("C:/Users/endah/Downloads/icomcos 2024/Data Penelitian 1.csv", sep = ";")
+
+#BI RATE
+#PREPROCESSING STANDARDIZED#
+mean.Yt = mean(data_NN$BI_Rate)
+sd.Yt   = sd(data_NN$BI_Rate)
+BI_Rate1 <- scale(data_NN$BI_Rate)
+Inflation1 <- scale(data_NN$Inflasi)
+Exchange_Rate1 <- scale(data_NN$Nilai_Tukar)
+Money_Supply1 <- scale(data_NN$M2)
+IDX_Composite1 <- scale(data_NN$IHSG)
+BI_Rate_fit <- BI_Rate1[-c(1, 98:112)]                 #mendefinisikan variabel output
+Bi_Rate_fore <- data_NN$BI_Rate[c(97:112)]
+BI_Rate <- BI_Rate1[-c(97:112)]
+Inflation <- Inflation1[-c(97:112)]
+Exchange_Rate <- Exchange_Rate1[-c(97:112)]
+Money_Supply <- Money_Supply1[-c(97:112)]
+IDX_Composite <- IDX_Composite1[-c(97:112)]
+
+data=data.frame(cbind(BI_Rate_fit, BI_Rate, Inflation, Exchange_Rate, Money_Supply, IDX_Composite))
+
+#MEMBENTUK MODEL NEURAL NETWORK#
+neuron=c(1,2,3,4,5,10,15)            #neuron yang akan digunakan
+n_fore=16                            #forecast berapa periode kedepan
+seed=c(1,1,1,1,1,1,1)                #berdasarkan percobaan beberapa set.seed yang berbeda
+
+best.model_NN=list
+fits.model_NN=matrix(0,length(BI_Rate),length(neuron))
+fore.model_NN=matrix(0,n_fore,length(neuron))
+
+for (k in seq_along(neuron))
+{
+  set.seed(seed[k])
+  best.model_NN=neuralnet(BI_Rate_fit~BI_Rate+Inflation+Exchange_Rate+Money_Supply+IDX_Composite,data=data,hidden=neuron[k],
+                          act.fct="tanh",linear.output=TRUE,likelihood=TRUE)
+  best.model_NN[[k]]=best.model_NN
+  fits.model_NN[,k]=(as.ts(unlist(best.model_NN[[k]]$net.result)))*sd.Yt+mean.Yt  #hasil ramalan data training
+  
+  
+  #ARSITEKTUR NEURAL NETWORK#
+  plot(best.model_NN[[k]])
+  
+  #FORECAST k-STEP AHEAD#
+  BI_Rate_test <- BI_Rate1[c(97:112)]
+  Inflation_test <- Inflation1[c(97:112)]
+  Exchange_Rate_test <- Exchange_Rate1[c(97:112)]
+  Money_Supply_test <- Money_Supply1[c(97:112)]
+  IDX_Composite_test <- IDX_Composite1[c(97:112)]
+  test=as.matrix(cbind(BI_Rate_test, Inflation_test, Exchange_Rate_test, Money_Supply_test, IDX_Composite_test))
+  Ytest=c(BI_Rate_fit,rep(0,n_fore))
+  for(i in (length(BI_Rate_fit)+1):(length(BI_Rate_fit)+n_fore))
+  {
+    Xtest=t(matrix(c(test[i-length(BI_Rate_fit),]),byrow=FALSE))
+    Ytest[i]=compute(best.model_NN[[k]],covariate=Xtest)$net.result
+  }
+  fore.model_NN[,k]=as.ts(Ytest[(length(BI_Rate_fit)+1):(length(BI_Rate_fit)+n_fore)])*sd.Yt+mean.Yt       #hasil ramalan data testing
+}
+#MEMBERI NAMA KOLOM UNTUK MATRIKS HASIL FORECAST#
+colnames(fits.model_NN)=c("Neuron 1","Neuron 2","Neuron 3","Neuron 4","Neuron 5",
+                          "Neuron 10","Neuron 15")
+colnames(fore.model_NN)=c("Neuron 1","Neuron 2","Neuron 3","Neuron 4","Neuron 5",
+                          "Neuron 10","Neuron 15") 
+
+#MENGHITUNG TINGKAT KESALAHAN PERAMALAN#
+akurasi=matrix(0,length(neuron),3)
+colnames(akurasi)=c("RMSE","MAE","MAPE")
+rownames(akurasi)=c("Neuron 1","Neuron 2","Neuron 3","Neuron 4","Neuron 5",
+                    "Neuron 10","Neuron 15")
+for (i in 1:length(neuron))
+{
+  akurasi[i,1]=accuracy(fore.model_NN[,i],Bi_Rate_fore)[1,2]
+  akurasi[i,2]=accuracy(fore.model_NN[,i],Bi_Rate_fore)[1,3]
+  akurasi[i,3]=accuracy(fore.model_NN[,i],Bi_Rate_fore)[1,5]
+}
+akurasi
+hasil=rbind(fits.model_NN, fore.model_NN)
+write.csv(hasil, 'C:/Users/endah/Downloads/icomcos 2024/BIrate_FFNN.csv')
