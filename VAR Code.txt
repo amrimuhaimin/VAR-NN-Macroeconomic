@@ -1,0 +1,52 @@
+library(vars)
+library(tseries)
+
+data.all <- read.csv("C:/Users/endah/Downloads/icomcos 2024/Data Penelitian 1.csv", sep = ";")
+Bi_Rate <- data.all$BI_Rate
+Inflation <- data.all$Inflasi
+Exchange_Rate <- data.all$Nilai_Tukar
+Money_Supply <- data.all$M2
+IDX_Composite <- data.all$IHSG
+data <- cbind(Bi_Rate, Inflation, Exchange_Rate, Money_Supply, IDX_Composite)
+datain <- data[1:96,]
+
+#VAR in level
+VARselect(datain, lag.max = 5,
+          type = "none", season = NULL)
+
+
+#VAR(1) data asli
+model_VAR1 <- VAR(datain, p = 1, 
+                  type = "none", season = NULL)
+summary(model_VAR1)
+
+
+
+#Uji Heteroskedastisitas
+Arch1 <- arch.test(model_VAR1, lags.multi = 1, multivariate.only = TRUE)
+Arch1
+
+#Uji Normalitas
+Norm1 <- normality.test(model_VAR1, multivariate.only = TRUE)
+Norm1
+
+#Stabilitas Model
+Stability1 <- stability(model_VAR1, type = "OLS-CUSUM")
+plot(Stability1)
+
+#Granger Causality
+GrangerBI<- causality(model_VAR1, cause = "Bi_Rate")
+GrangerBI
+GrangerInflasi <- causality(model_VAR1, cause = "Inflation")
+GrangerInflasi
+GrangerNilaiTukar <- causality(model_VAR1, cause = "Exchange_Rate")
+GrangerNilaiTukar
+GrangerUangBeredar <- causality(model_VAR1, cause = "Money_Supply")
+GrangerUangBeredar
+GrangerIHSG <- causality(model_VAR1, cause = "IDX_Composite")
+GrangerIHSG
+
+#FEVD
+FEVD1 <- fevd(model_VAR1, n.ahead = 30)
+FEVD1
+plot(FEVD1, col = 1:5)
